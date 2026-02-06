@@ -1,3 +1,4 @@
+import json
 import requests
 from urllib.parse import urljoin, urlparse, urlunparse
 from bs4 import BeautifulSoup
@@ -9,6 +10,12 @@ USER_AGENT = "Sensebot"
 
 robots_cache = {}
 sitemaps_cache = {}
+
+class SetEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, set):
+            return list(obj)
+        return json.JSONEncoder.default(self, obj)
 
 
 def get_robots_parser(url: str) -> RobotFileParser:
@@ -22,12 +29,10 @@ def get_robots_parser(url: str) -> RobotFileParser:
             headers.status_code == 200
             and headers.headers.get("content-type") == "text/plain"
         ):
-            parser = RobotFileParser(robots_url)
+            parser = robots_cache[url_data.netloc] = RobotFileParser(robots_url)
             parser.read()
-            robots_cache[url_data.netloc] = parser
         else:
-            parser = None
-            robots_cache[url_data.netloc] = None
+            parser = robots_cache[url_data.netloc] = None
     return parser
 
 
@@ -89,14 +94,14 @@ def get_links_from(url: str) -> set[str]:
             if not link.endswith("/"):
                 link += "/"
             if can_crawl(link):
-                print("✔️  " + link)
                 links.add(link)
-            else:
-                print("✖️  " + link)
     else:
         print(f"error: {response.status_code}")
 
     return links
 
 
-print(len(get_links_from("https://www.google.com")))
+links = get_links_from("https://www.google.com")
+with open("links_to_crawl.txt", "w") as f:
+    for url in links:
+        f.write(url + "\n")
